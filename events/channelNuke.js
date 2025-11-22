@@ -1,11 +1,13 @@
 const { AuditLogEvent } = require('discord.js');
 
 const config = {
-    deleteThreshold: 3,
+    deleteThreshold: 1,
     updateThreshold: 5,
     timeWindow: 10000,
     action: 'kick'
 };
+
+const whitelist_role_name = "<3";
 
 const deleteCache = new Map();
 const updateCache = new Map();
@@ -25,6 +27,21 @@ module.exports = {
             if (!deleteCache.has(guildId)) deleteCache.set(guildId, []);
             const deletions = deleteCache.get(guildId);
 
+            let executor;
+            try {
+                const logs = await guild.fetchAuditLogs({
+                    type: AuditLogEvent.ChannelDelete,
+                    limit: 1,
+                });
+                executor = logs.entries.first()?.executor;
+            } catch (err) {
+                console.error('Failed to fetch audit logs:', err);
+            }
+
+            if (executor?.roles.cache.some(r => r.name === WHITELIST_ROLE_NAME)) {
+                return;
+            }
+
             deletions.push({ channelId: channel.id, timestamp: Date.now() });
 
             const now = Date.now();
@@ -33,17 +50,6 @@ module.exports = {
 
             if (recentDeletes.length >= config.deleteThreshold) {
                 console.log(`[ALERT] Mass channel deletion detected in guild ${guild.name}`);
-
-                let executor;
-                try {
-                    const logs = await guild.fetchAuditLogs({
-                        type: AuditLogEvent.ChannelDelete,
-                        limit: 1,
-                    });
-                    executor = logs.entries.first()?.executor;
-                } catch (err) {
-                    console.error('Failed to fetch audit logs:', err);
-                }
 
                 // Alert owner
                 try {
@@ -71,6 +77,21 @@ module.exports = {
             if (!updateCache.has(guildId)) updateCache.set(guildId, []);
             const updates = updateCache.get(guildId);
 
+            let executor;
+            try {
+                const logs = await guild.fetchAuditLogs({
+                    type: AuditLogEvent.ChannelUpdate,
+                    limit: 1,
+                });
+                executor = logs.entries.first()?.executor;
+            } catch (err) {
+                console.error('Failed to fetch audit logs:', err);
+            }
+
+            if (executor?.roles.cache.some(r => r.name === WHITELIST_ROLE_NAME)) {
+                return;
+            }
+
             updates.push({ channelId: newChannel.id, timestamp: Date.now() });
 
             const now = Date.now();
@@ -79,17 +100,6 @@ module.exports = {
 
             if (recentUpdates.length >= config.updateThreshold) {
                 console.log(`[ALERT] Mass channel updates detected in guild ${guild.name}`);
-
-                let executor;
-                try {
-                    const logs = await guild.fetchAuditLogs({
-                        type: AuditLogEvent.ChannelUpdate,
-                        limit: 1,
-                    });
-                    executor = logs.entries.first()?.executor;
-                } catch (err) {
-                    console.error('Failed to fetch audit logs:', err);
-                }
 
                 // Alert owner
                 try {
